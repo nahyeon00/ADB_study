@@ -145,7 +145,7 @@ class BERTfeature(pl.LightningModule):
         eval_score = round(accuracy_score(y_true, y_pred) * 100, 2)
 
         self.log('val_acc', eval_score)
-        print("val acc", val_acc)
+        print("val acc", eval_score)
 
         return eval_score
     

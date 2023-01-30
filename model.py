@@ -43,10 +43,10 @@ class BERTfeature(pl.LightningModule):
         self.__build_loss()
 
         # centroids 초기화
-        self.centroids = torch.zeros(self.num_labels, 768).to(self.device)
+        self.centroids = torch.zeros(self.num_labels, 768)
 
-        self.total_labels = torch.empty(0, dtype=torch.long).to(self.device)
-        self.total_logits = torch.empty((0, self.num_labels)).to(self.device)
+        self.total_labels = torch.empty(0, dtype=torch.long)
+        self.total_logits = torch.empty((0, self.num_labels))
         
         # # weight initialization
         # self.init_weights()

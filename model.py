@@ -121,7 +121,11 @@ class BERTfeature(pl.LightningModule):
         val_acc = accuracy_score(y_true, y_pred)
         eval_score = round(val_acc * 100, 2)
 
+<<<<<<< HEAD
         self.log('val_acc', val_acc)
+=======
+        self.log('val_acc', eval_score)
+>>>>>>> cc73ec8ad59a85001019359983822c03c53e2c72
         print("val acc", eval_score)
 
         return val_acc
@@ -231,3 +235,130 @@ class BERTfeature(pl.LightningModule):
     
     def __build_loss(self):
         self._loss = nn.CrossEntropyLoss()
+<<<<<<< HEAD
+=======
+
+
+class ADBDataset(Dataset):
+    def __init__(self, process_data, max_seq_len, label_list, seed):
+        set_seed(seed)
+        self.data = process_data
+
+        self.max_seq_len = max_seq_len
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True) 
+        self.label_list = label_list
+        self.label_map = {}
+        for i, label in enumerate(self.label_list):
+            self.label_map[label] = i
+        
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, index):
+        data = self.data[index]
+        doc = data['text']
+
+        features = self.tokenizer.encode_plus(str(doc),
+                                              add_special_tokens=True,
+                                              max_length=self.max_seq_len,
+                                              pad_to_max_length=True,
+                                              truncation=True,
+                                              return_attention_mask=True,
+                                              return_tensors='pt',
+                                             )        
+        input_ids = features['input_ids'].squeeze(0)
+        attention_mask = features['attention_mask'].squeeze(0)
+        token_type_ids = features['token_type_ids'].squeeze(0)
+        ori_label = data['label']
+        label_id = torch.tensor([self.label_map[ori_label]], dtype = torch.long)
+        
+        return {
+            'input_ids': input_ids,
+            'attention_mask': attention_mask,
+            'token_type_ids': token_type_ids,
+            'label_id': label_id
+        }
+
+class ADBDataModule(pl.LightningDataModule):
+    def __init__(self, data_path, dataset, batch_size, known_cls_ratio, labeled_ratio, seed, worker):
+        set_seed(seed)
+        self.seed = seed
+        self.dataset = dataset
+        self.data_path = os.path.join(data_path, self.dataset)
+        self.train_data_path = f'{self.data_path}/train.tsv'
+        self.val_data_path = f'{self.data_path}/dev.tsv'
+        self.test_data_path = f'{self.data_path}/test.tsv'
+
+        self.max_seq_len = max_seq_lengths[self.dataset]
+        self.batch_size = batch_size
+        self.known_cls_ratio = known_cls_ratio
+        self.worker = worker
+        self.labeled_ratio = labeled_ratio
+
+        ####### label list
+        self.all_label_list = benchmark_labels[self.dataset]
+        self.n_known_cls = round(len(self.all_label_list) * self.known_cls_ratio)
+        self.known_label_list = np.random.choice(np.array(self.all_label_list, dtype=str), self.n_known_cls, replace=False)
+        self.known_label_list = self.known_label_list.tolist()
+        print("known_label_list", self.known_label_list)
+
+        self.num_labels = len(self.known_label_list)
+
+        if self.dataset == 'oos':
+            self.unseen_label = 'oos'
+        else:
+            self.unseen_label = '<UNK>'
+        
+        self.unseen_label_id = self.num_labels
+        self.label_list = self.known_label_list + [self.unseen_label]
+        
+    def setup(self, stage):
+
+        if stage in (None, 'fit'):
+            # prepare
+            self.train_data = pd.read_csv(self.train_data_path, delimiter="\t")
+            self.valid_data = pd.read_csv(self.val_data_path, delimiter="\t")
+
+            self.train_examples = []
+            self.val_examples = []
+
+            for i in self.train_data.index:
+                cur_label = self.train_data.loc[i]['label']
+                if (cur_label in self.known_label_list) and (np.random.uniform(0, 1) <= self.labeled_ratio):
+                    self.train_examples.append(self.train_data.iloc[i])
+            for i in self.valid_data.index:
+                cur_label = self.valid_data.loc[i]['label']
+                if (cur_label in self.known_label_list):
+                    self.val_examples.append(self.valid_data.iloc[i])
+
+            self.train = ADBDataset(self.train_examples, self.max_seq_len, self.label_list, self.seed) 
+            self.valid = ADBDataset(self.val_examples, self.max_seq_len, self.label_list, self.seed)
+
+        elif stage in (None, 'test'):
+            # prepare
+            self.test_data = pd.read_csv(self.test_data_path, delimiter="\t")
+
+            self.test_examples = []
+
+            for i in self.test_data.index:
+                cur_label = self.test_data.loc[i]['label']
+                if (cur_label in self.label_list) and (cur_label is not self.unseen_label):
+                    self.test_examples.append(self.test_data.iloc[i])
+                else:
+                    self.test_data.loc[i]['label'] = self.unseen_label
+                    self.test_examples.append(self.test_data.iloc[i])
+
+            self.test = ADBDataset(self.test_examples, self.max_seq_len, self.label_list, self.seed)
+        
+    def train_dataloader(self):
+        return DataLoader(self.train, batch_size=self.batch_size, num_workers= self.worker)
+    
+    def val_dataloader(self):
+        return DataLoader(self.valid, batch_size=self.batch_size, num_workers= self.worker)
+    
+    def test_dataloader(self):
+        return DataLoader(self.test, batch_size=self.batch_size, num_workers= self.worker)
+    
+    def predict_dataloader(self):
+        return DataLoader(self.train, batch_size=self.batch_size, num_workers= self.worker)
+>>>>>>> cc73ec8ad59a85001019359983822c03c53e2c72

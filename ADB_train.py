@@ -7,6 +7,7 @@ import os
 from ADB import *
 from model import *
 from utils import *
+from data_preprocess import *
 
 
 def parse_arguments():
@@ -74,6 +75,10 @@ def parse_arguments():
                         type=str,
                         default = 'results.csv', 
                         help="The file name of all the results.")
+    parser.add_argument("--num_labels", 
+                        type=int, 
+                        default = 0, 
+                        help="known label list + unseen label")
 
     args = parser.parse_args()
 
@@ -115,6 +120,7 @@ def main():
 
     
     trainer = Trainer(
+        args,
         max_epochs=args.max_epoch,
         accelerator="gpu",
         devices=[1],
@@ -126,6 +132,8 @@ def main():
     print("start test")
     trainer.test(model, dm)
     print("finish test")
+    # print(test_results)
+    # save_results(args, test_results)
 
     
 if __name__ == '__main__':

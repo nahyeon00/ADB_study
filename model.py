@@ -20,7 +20,6 @@ from data_preprocess import *
 
 
 class BERTfeature(pl.LightningModule):
-
     def __init__(self, args):
         super().__init__()
         self.save_hyperparameters(args)
@@ -33,7 +32,7 @@ class BERTfeature(pl.LightningModule):
 
         # use pretrained BERT
         model_config = BertConfig.from_pretrained('bert-base-uncased', output_hidden_states=True)
-        self.bert = BertModel.from_pretrained('bert-base-uncased', config=model_config, )
+        self.bert = BertModel.from_pretrained('bert-base-uncased', config=model_config)
         self.dense = nn.Linear(self.bert.config.hidden_size, self.bert.config.hidden_size)
         self.activation = nn.ReLU()
         self.dropout =  nn.Dropout(self.bert.config.hidden_dropout_prob)
@@ -42,15 +41,16 @@ class BERTfeature(pl.LightningModule):
         self.__build_loss()
 
         # centroids 초기화
-        self.centroids = torch.zeros(self.num_labels, 768).to(self.device)
+        self.centroids = torch.zeros(self.num_labels, 768)
 
-        self.total_labels = torch.empty(0, dtype=torch.long).to(self.device)
-        self.total_logits = torch.empty((0, self.num_labels)).to(self.device)
+        self.total_labels = torch.empty(0, dtype=torch.long)
+        self.total_logits = torch.empty((0, self.num_labels))
         
         # # weight initialization
         # self.init_weights()
         # self.weight = Parameter(torch.FloatTensor(args.num_labels, args.feat_dim).to(args.device))
         # nn.init.xavier_uniform_(self.weight)
+
 
     def forward(self, input_ids, attention_mask, token_type_ids):
         # output [last_hidden_state, pooler_output, hidden_states]  -> last hidden layer
@@ -76,6 +76,7 @@ class BERTfeature(pl.LightningModule):
 
     
     def training_step(self, batch, batch_idx):
+        print("training step")
         # batch
         input_ids = batch['input_ids']
         attention_mask = batch['attention_mask']
@@ -84,22 +85,19 @@ class BERTfeature(pl.LightningModule):
         
         # fwd
         _, logits = self.forward(input_ids, attention_mask, token_type_ids)
-        
+
         # loss
-        loss = self._loss(logits, label_id.long().squeeze(-1))
+        loss = F.cross_entropy(logits, label_id.long().squeeze(-1))
         
         # logs
         tensorboard_logs = {'train_loss': loss}
-        print("trianing loss", loss)
 
         self.log("train_loss", loss, on_epoch=True, prog_bar=True, logger=True)
 
-        return loss
+        return {'loss': loss, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
         print("start validation")
-        self.total_labels = torch.empty(0, dtype=torch.long).to(self.device)
-        self.total_logits = torch.empty((0, self.num_labels)).to(self.device)
         # batch
         input_ids = batch['input_ids']
         attention_mask = batch['attention_mask']
@@ -109,11 +107,13 @@ class BERTfeature(pl.LightningModule):
         # fwd
         _, logits = self.forward(input_ids, attention_mask, token_type_ids)
 
-        total_probs = F.softmax(logits.detach(), dim=1)
+        total_probs = self._loss(logits.detach(), dim=1)
 
         total_maxprobs, total_preds = total_probs.max(dim = 1)
+   
         y_pred = total_preds.cpu().numpy()
-        y_true = self.total_labels.cpu().numpy()
+        y_true = label_id.cpu().numpy()
+
         val_acc = accuracy_score(y_true, y_pred)
         eval_score = round(val_acc * 100, 2)
 
@@ -151,13 +151,11 @@ class BERTfeature(pl.LightningModule):
 
         
         self.log_dict({'test_acc': test_acc})
-        print("testacc", test_acc)
         
         return {'test_acc': test_acc}
     
     
     def predict_step(self, batch, batch_idx):
-        # self.bert.eval()
         print("predict step")
 
         # batch
@@ -168,9 +166,6 @@ class BERTfeature(pl.LightningModule):
 
         # fwd
         pooled_output, _ = self.forward(input_ids, attention_mask, token_type_ids)
-        # assert 1==0
-        print("pooled_ouput", pooled_output)
-        # print("size", pooled_output.size())  # [128, 768]
 
         self.total_labels = torch.cat((self.total_labels.to(self.device), label_ids))
 
@@ -179,8 +174,6 @@ class BERTfeature(pl.LightningModule):
         for i in range(len(label_ids)):
             label = label_ids[i]
             self.centroids[label] += pooled_output[i]
-            # print("centroids", pooled_output[i])
-        print("cebtr", self.centroids)
         
         # assert 1==0
 
@@ -207,24 +200,17 @@ class BERTfeature(pl.LightningModule):
     
     def configure_optimizers(self):
         """Prepare optimizer and schedule (linear warmup and decay)"""
-        # param_optimizer = list(self.bert.named_parameters())
-        # no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
-        # optimizer_grouped_parameters = [
-        #     {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
-        #     {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
-        # ]
-
-        # optimizer = AdamW(optimizer_grouped_parameters, lr = 2e-5, correct_bias=False)
-
-#         parameters = []
-#         for p in self.parameters():
-#             if p.requires_grad:
-#                 parameters.append(p)
+        parameters = []
+        for p in self.parameters():
+            if p.requires_grad:
+                parameters.append(p)
+            else:
+                print(p)
                 
-        optimizer = AdamW(self.parameters(), lr=2e-05, eps=1e-08)
+        optimizer = torch.optim.Adam(parameters, lr=2e-05 , eps=1e-08)
+
         return optimizer
     
     def __build_loss(self):
         self._loss = nn.CrossEntropyLoss()
 
-     

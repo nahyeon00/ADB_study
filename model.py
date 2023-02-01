@@ -24,7 +24,6 @@ class BERTfeature(pl.LightningModule):
     def __init__(self, args):
         super().__init__()
         self.save_hyperparameters(args)
-        self.automatic_optimization = False
 
         # data
         self.dataset = args.dataset  # 저장 파일명 위해 필요

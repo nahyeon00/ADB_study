@@ -118,7 +118,6 @@ class BERTfeature(pl.LightningModule):
         eval_score = round(val_acc * 100, 2)
 
         self.log('val_acc', val_acc)
-        print("val acc", eval_score)
 
         return val_acc
     

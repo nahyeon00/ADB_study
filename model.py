@@ -109,10 +109,7 @@ class BERTfeature(pl.LightningModule):
         # fwd
         _, logits = self.forward(input_ids, attention_mask, token_type_ids)
 
-        self.total_logits = torch.cat(((self.total_logits.to(self.device), logits)))
-        self.total_labels = torch.cat((self.total_labels.to(self.device), label_id))
-
-        total_probs = F.softmax(self.total_logits.detach(), dim=1)
+        total_probs = F.softmax(logits.detach(), dim=1)
 
         total_maxprobs, total_preds = total_probs.max(dim = 1)
         y_pred = total_preds.cpu().numpy()

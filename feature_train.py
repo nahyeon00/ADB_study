@@ -87,7 +87,7 @@ def parse_arguments():
 
 
 
-def load_model_from_experiment(args, pre):
+def load_model_from_experiment(args):
         """Function that loads the model from an experiment folder.
         :param experiment_folder: Path to the experiment folder.
         Return:

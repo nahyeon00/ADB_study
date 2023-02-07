@@ -1,4 +1,4 @@
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, RandomSampler, SequentialSampler
 import pytorch_lightning as pl
 import torch.nn.functional as F
 from transformers import BertPreTrainedModel, BertModel, BertTokenizer, AdamW, BertConfig
@@ -105,7 +105,7 @@ class ADBDataModule(pl.LightningDataModule):
                 if (cur_label in self.known_label_list):
                     self.val_examples.append(self.valid_data.iloc[i])
 
-            self.train = ADBDataset(self.train_examples, self.max_seq_len, self.label_list) 
+            self.train = ADBDataset(self.train_examples, self.max_seq_len, self.label_list)
             self.valid = ADBDataset(self.val_examples, self.max_seq_len, self.label_list)
 
         elif stage in (None, 'test'):
@@ -130,14 +130,17 @@ class ADBDataModule(pl.LightningDataModule):
             self.test = ADBDataset(self.test_examples, self.max_seq_len, self.label_list)
         
     def train_dataloader(self):
-        return DataLoader(self.train, batch_size=self.batch_size, num_workers= self.worker)
+        sampler = RandomSampler(self.train)
+        return DataLoader(self.train, batch_size=self.batch_size, num_workers= self.worker, sampler = sampler)
     
     def val_dataloader(self):
-        return DataLoader(self.valid, batch_size=self.batch_size, num_workers= self.worker)
+        sampler = SequentialSampler(self.valid)
+        return DataLoader(self.valid, batch_size=self.batch_size, num_workers= self.worker, sampler = sampler)
     
     def test_dataloader(self):
-        return DataLoader(self.test, batch_size=self.batch_size, num_workers= self.worker)
+        sampler = SequentialSampler(self.test)
+        return DataLoader(self.test, batch_size=self.batch_size, num_workers= self.worker, sampler = sampler)
     
     def predict_dataloader(self):
-        return DataLoader(self.train, batch_size=self.batch_size, num_workers= self.worker)
-
+        sampler = RandomSampler(self.train)
+        return DataLoader(self.train, batch_size=self.batch_size, num_workers= self.worker, sampler = sampler)

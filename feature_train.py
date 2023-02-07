@@ -64,6 +64,10 @@ def parse_arguments():
                        type=str,
                        default='/workspace/intent/newADB/results/',
                        help='output dir')
+    parser.add_argument('--centroids',
+                       type=str,
+                       default='/workspace/intent/newADB/centroids',
+                       help='save centroids')
     parser.add_argument("--results_file_name", 
                         type=str, 
                         default = 'results.csv', 
@@ -76,7 +80,6 @@ def parse_arguments():
                         type=str, 
                         default = 'feature_train', 
                         help="for test dataloader")
-    
 
     args = parser.parse_args()
 
@@ -84,7 +87,7 @@ def parse_arguments():
 
 
 
-def load_model_from_experiment(args):
+def load_model_from_experiment(args, pre):
         """Function that loads the model from an experiment folder.
         :param experiment_folder: Path to the experiment folder.
         Return:
@@ -106,8 +109,8 @@ def load_model_from_experiment(args):
         #     checkpoint_path, hparams=Namespace(**hparams)
         # )
         print("checkpoints list!!!!!!!!!!!!!!!!!!!!!!!", checkpoints)
-        checkpoint_path = args.ckpt_path + "/checkpoints/" + checkpoints[0]
-        model = BERTfeature.load_from_checkpoint(checkpoint_path, args =args)
+        checkpoint_path = args.ckpt_path + "/checkpoints/" + checkpoints[-1]
+        model = BERTfeature.load_from_checkpoint(checkpoint_path, args=args)
         print("checkpoint_path", checkpoint_path)
         model.eval()
         model.freeze()
@@ -120,7 +123,6 @@ def main():
     dm = ADBDataModule(args = args)
 
     dm.setup('fit')
-    
     model = BERTfeature(args)
 
     filename =  f'BestModel_{args.dataset}_{args.known_cls_ratio}'
@@ -128,8 +130,8 @@ def main():
     checkpoint_callback = ModelCheckpoint(
         monitor='val_acc',
         dirpath=args.model_save_path,
-        filename='{epoch:02d}-{val_acc:.3f}',
-        # filename = filename,
+        # filename='{epoch:02d}-{val_acc:.3f}',
+        filename = filename,
         verbose=True,
         save_last=False,
         mode='max',
@@ -147,9 +149,9 @@ def main():
         args,
         max_epochs=args.max_epoch,
         accelerator="gpu",
-        devices=[1],
+        devices=[0],
         auto_select_gpus=True,
-        callbacks=[checkpoint_callback],
+        callbacks=[checkpoint_callback]
     )
     
     # train
@@ -159,8 +161,8 @@ def main():
     model = load_model_from_experiment(args)
     model.freeze()
     model.eval()
-    # trainer.predict(model, dm)
-    trainer.test(model, dm)
+    trainer.predict(model, dm)
+    # trainer.test(model, dm)
 
 if __name__ == '__main__':
     main()

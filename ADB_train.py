@@ -45,7 +45,7 @@ def parse_arguments():
                        help='checkpoint file path')
     parser.add_argument('--model_save_path',
                        type=str,
-                       default='checkpoints',
+                       default='ADBmodel',
                        help='where to save checkpoint files')
     parser.add_argument('--max_seq_len',
                        type=int,
@@ -79,6 +79,10 @@ def parse_arguments():
                         type=int, 
                         default = 0, 
                         help="known label list + unseen label")
+    parser.add_argument("--mode", 
+                        type=str, 
+                        default = 'ADB', 
+                        help="for test dataloader")
 
     args = parser.parse_args()
 
@@ -90,15 +94,7 @@ def main():
 
     seed_everything(args.seed, workers=True)
     
-    dm = ADBDataModule(
-        data_path=args.data_path,
-        dataset=args.dataset,
-        batch_size=args.batch_size,
-        known_cls_ratio = args.known_cls_ratio,
-        labeled_ratio = args.labeled_ratio,
-        seed = args.seed,
-        worker= args.num_workers
-    )
+    dm = ADBDataModule(args = args)
 
     dm.setup('fit')
     
@@ -119,7 +115,7 @@ def main():
     # )
 
     
-    trainer = Trainer(
+    trainer = Trainer.from_argparse_args(
         args,
         max_epochs=args.max_epoch,
         accelerator="gpu",
@@ -129,6 +125,8 @@ def main():
     trainer.fit(model, dm)
 
     print("finish train")
+    model.freeze()
+    model.eval()
     print("start test")
     trainer.test(model, dm)
     print("finish test")

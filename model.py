@@ -32,7 +32,9 @@ class BERTfeature(pl.LightningModule):
 
         # use pretrained BERT
         model_config = BertConfig.from_pretrained('bert-base-uncased', output_hidden_states=True)
-        self.bert = BertModel.from_pretrained('bert-base-uncased', config=model_config)
+        # model_config = pre.config
+        # self.bert = BertModel.from_pretrained('bert-base-uncased', config=model_config)
+        self.bert = BertModel(model_config)
         self.dense = nn.Linear(self.bert.config.hidden_size, self.bert.config.hidden_size)
         self.activation = nn.ReLU()
         self.dropout =  nn.Dropout(self.bert.config.hidden_dropout_prob)
@@ -42,9 +44,7 @@ class BERTfeature(pl.LightningModule):
 
         # centroids 초기화
         self.centroids = torch.zeros(self.num_labels, 768)
-
         self.total_labels = torch.empty(0, dtype=torch.long)
-        self.total_logits = torch.empty((0, self.num_labels))
         
         # # weight initialization
         # self.init_weights()
@@ -87,7 +87,7 @@ class BERTfeature(pl.LightningModule):
         _, logits = self.forward(input_ids, attention_mask, token_type_ids)
 
         # loss
-        loss = F.cross_entropy(logits, label_id.long().squeeze(-1))
+        loss = self._loss(logits, label_id.long().squeeze(-1))
         
         # logs
         tensorboard_logs = {'train_loss': loss}
@@ -107,7 +107,7 @@ class BERTfeature(pl.LightningModule):
         # fwd
         _, logits = self.forward(input_ids, attention_mask, token_type_ids)
 
-        total_probs = self._loss(logits.detach(), dim=1)
+        total_probs = F.softmax(logits.detach(), dim=1)
 
         total_maxprobs, total_preds = total_probs.max(dim = 1)
    
@@ -122,11 +122,6 @@ class BERTfeature(pl.LightningModule):
         return val_acc
     
     
-    def on_test_start(self):
-        self.total_labels = torch.empty(0, dtype=torch.long).to(self.device)
-        self.total_logits = torch.empty((0, self.num_labels)).to(self.device)
-
-        return self.total_labels, self.total_logits
     
     def test_step(self, batch, batch_nb):
         # batch
@@ -136,15 +131,12 @@ class BERTfeature(pl.LightningModule):
         label_id = batch['label_id']
         
         _, logits = self.forward(input_ids, attention_mask, token_type_ids)
-        
-        self.total_logits = torch.cat(((self.total_logits.to(self.device), logits)))
-        self.total_labels = torch.cat((self.total_labels.to(self.device), label_id))
 
-        total_probs = F.softmax(self.total_logits.detach(), dim=1)
+        total_probs = F.softmax(logits.detach(), dim=1)
         total_maxprobs, total_preds = total_probs.max(dim = 1)
 
         y_pred = total_preds.cpu().numpy()
-        y_true = self.total_labels.cpu().numpy()
+        y_true = label_id.cpu().numpy()
         test_acc = accuracy_score(y_true, y_pred)
         eval_score = round(test_acc * 100, 2)
         test_acc = torch.tensor(test_acc)
@@ -170,20 +162,23 @@ class BERTfeature(pl.LightningModule):
         self.total_labels = torch.cat((self.total_labels.to(self.device), label_ids))
 
         self.centroids = self.centroids.to(self.device)
+        print("centrodi", self.centroids.dtype)
+        # assert 1==0
+        print("len", len(label_ids))
 
         for i in range(len(label_ids)):
             label = label_ids[i]
             self.centroids[label] += pooled_output[i]
-        
-        # assert 1==0
+            print("feature", pooled_output[i])
 
         return {'centroids':self.centroids, 'total_labels':self.total_labels}
 
     
     def on_predict_end(self):
-        print("end predict centroids", self.centroids.size())
+        print("end predict centroids", self.centroids)
 
         self.total_labels = self.total_labels.cpu().numpy()
+        print("total label", self.class_count(self.total_labels))
         self.centroids /= torch.tensor(self.class_count(self.total_labels)).float().unsqueeze(1).to(self.device)
 
         print('finish cal centroids', self.centroids)

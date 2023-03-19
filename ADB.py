@@ -60,6 +60,7 @@ class BERTADB(pl.LightningModule):
         print("argas",args.dataset)
         self.dataset = args.dataset
         self.known_cls_ratio = args.known_cls_ratio
+        self.label_list = args.label_list
 
         self.num_labels = args.num_labels
 
@@ -84,32 +85,42 @@ class BERTADB(pl.LightningModule):
         
         print("centroids", self.centroids)
         
-        
-        
+                
         # delta 초기화
         # delta 값
+        # self.__build_loss()
+        # self.criterion_boundary = BoundaryLoss(num_labels = self.num_labels, feat_dim = 768, device=self.device)
         
-        self.criterion_boundary = BoundaryLoss(num_labels = self.num_labels, feat_dim = 768, device=self.device)
-        
+        # boundaryloss
+        self.num_labels = self.num_labels
+        self.feat_dim = 768
+        self.delta = nn.Parameter(torch.randn(self.num_labels).to(self.device))
+        # print("loss delta", self.delta)
+        nn.init.normal_(self.delta)
+
         self.delta_points = []
-        self.delta = F.softplus(self.criterion_boundary.delta)
-        self.delta_points.append(self.delta)
-        print("delta points: ", self.delta_points)
+        #self.delta = F.softplus(self.delta)
+        #self.delta_points.append(self.delta)
+        # print("delta points: ", self.delta_points)
         # assert 1==0
 
         self.unseen_label_id = self.num_labels
 
         self.total_labels = torch.empty(0, dtype=torch.long)
         self.total_preds = torch.empty(0,dtype=torch.long)
-
-
+ 
     def forward(self, input_ids, attention_mask, token_type_ids):
         pooled_output, logits = self.model(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
         return pooled_output, logits
-
+    
+    # def on_train_start(batch, batch_idx):
+    #     self.delta = F.softplus(self.criterion_boundary.delta)
+    #     self.delta_points.append(self.delta)
+        # print("delta points: ", self.delta_points)
 
     def training_step(self, batch, batch_idx):
         # batch
+
         input_ids = batch['input_ids']
         attention_mask = batch['attention_mask']
         token_type_ids = batch['token_type_ids']
@@ -120,10 +131,13 @@ class BERTADB(pl.LightningModule):
         ###################
         pooled_output, _ = self.forward(input_ids, attention_mask, token_type_ids)  # feature
         print("before boundary loss")
+        breakpoint()
         # loss
-        loss, self.delta = self.criterion_boundary(pooled_output, self.centroids.to(self.device), label)
+        loss, self.delta = self.boundaryloss(pooled_output, self.centroids.to(self.device), label)
         print("ADB after loss")
-        
+
+        print("del", self.delta)
+
         # logs
         tensorboard_logs = {'train_loss': loss}
         self.delta_points.append(self.delta)
@@ -132,6 +146,24 @@ class BERTADB(pl.LightningModule):
 
         return {'loss': loss, 'log': tensorboard_logs}
     
+
+    def boundaryloss(self, pooled_output, centroids, labels):
+        delta = F.softplus(self.delta)
+        c = centroids[labels]
+        d = delta[labels]
+        x = pooled_output
+        
+        euc_dis = torch.norm(x - c,2, 1).view(-1)
+        pos_mask = (euc_dis > d).type(torch.cuda.FloatTensor)
+        neg_mask = (euc_dis < d).type(torch.cuda.FloatTensor)
+        
+        pos_loss = (euc_dis - d) * pos_mask
+        neg_loss = (d - euc_dis) * neg_mask
+        
+        loss = pos_loss.mean() + neg_loss.mean()
+
+        return loss, delta 
+
 
     def validation_step(self, batch, batch_idx):
         print("validation step")
@@ -184,6 +216,7 @@ class BERTADB(pl.LightningModule):
         print("y_true", y_true)
         cm = confusion_matrix(y_true, y_pred)
         print("confusion matrix!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        plot_confusion_matrix(cm, self.label_list,"confusion matrix.pdf")
         test_results = F_measure(cm)
 
         acc = round(accuracy_score(y_true, y_pred) * 100, 2)
@@ -215,6 +248,22 @@ class BERTADB(pl.LightningModule):
     def configure_optimizers(self):
         # optimizer = AdamW(self.parameters(), lr=2e-5)
         # print("criterion", self.criterion_boundary.parameters())
-        optimizer = torch.optim.Adam(self.criterion_boundary.parameters(), lr=2e-5)
+        parameters = []
+        for p in self.parameters():
+            if p.requires_grad:
+                parameters.append(p)
+            else:
+                print(p)
+
+        # print("pa", self.criterion_boundary.parameters())
+        # print("del", self.delta)
+        # print("ppp", parameters)
+        # assert 1==0
+        # assert 1==0
+        optimizer = torch.optim.Adam(parameters, lr=2e-5)
+
         return optimizer
+    
+    # def __build_loss(self):
+    #     self.criterion_boundary = boundaryloss(num_labels = self.num_labels, feat_dim = 768, device=self.device)
     

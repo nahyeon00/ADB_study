@@ -109,10 +109,11 @@ def main():
         mode='max',
         save_top_k=1,
     )
-    # early_stopping = EarlyStopping(
-    #     monitor='val_acc', 
-    #     mode='max',
-    # )
+    early_stopping = EarlyStopping(
+        monitor='val_acc', 
+        mode='max',
+        patience=10,
+    )
 
     
     trainer = Trainer.from_argparse_args(
@@ -120,7 +121,7 @@ def main():
         max_epochs=args.max_epoch,
         accelerator="gpu",
         devices=[1],
-        callbacks=[checkpoint_callback],
+        callbacks=[checkpoint_callback, early_stopping],
     )
     trainer.fit(model, dm)
 

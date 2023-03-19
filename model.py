@@ -85,7 +85,9 @@ class BERTfeature(pl.LightningModule):
         _, logits = self.forward(input_ids, attention_mask, token_type_ids)
 
         # loss
-        loss = F.cross_entropy(logits, label_id.long().squeeze(-1))
+        print("lo", logits.size(), label_id.size(), label_id.squeeze(-1).size())
+
+        loss = self._loss(logits, label_id.long().squeeze(-1))
         
         # logs
         tensorboard_logs = {'train_loss': loss}
@@ -145,7 +147,7 @@ class BERTfeature(pl.LightningModule):
         return {'test_acc': test_acc}
     
     
-   def predict_step(self, batch, batch_idx):
+    def predict_step(self, batch, batch_idx):
         print("predict step")
 
         # batch

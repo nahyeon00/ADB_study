@@ -3,6 +3,8 @@ import argparse
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from transformers import AutoConfig
+
 
 from model import *
 from data_preprocess import *
@@ -123,6 +125,8 @@ def main():
     dm = ADBDataModule(args = args)
 
     dm.setup('fit')
+
+    # config = AutoConfig.from_pretrained('bert-base-uncased')
     model = BERTfeature(args)
 
     filename =  f'BestModel_{args.dataset}_{args.known_cls_ratio}'
@@ -137,10 +141,11 @@ def main():
         mode='max',
         save_top_k=1,
     )
-    # early_stopping = EarlyStopping(
-    #     monitor='val_acc', 
-    #     mode='max',
-    # )
+    early_stopping = EarlyStopping(
+        monitor='val_acc', 
+        mode='max',
+        patience=10,
+    )
 
     # tb_logger = pl_loggers.TensorBoardLogger(os.path.join(dir_path, 'tb_logs'))
     # lr_logger = pl.callbacks.LearningRateMonitor()
@@ -151,11 +156,11 @@ def main():
         accelerator="gpu",
         devices=[0],
         auto_select_gpus=True,
-        callbacks=[checkpoint_callback]
+        callbacks=[checkpoint_callback, early_stopping]
     )
     
     # train
-    trainer.fit(model, dm)
+    # trainer.fit(model, dm)
 
     # predict to calculate centroids
     model = load_model_from_experiment(args)

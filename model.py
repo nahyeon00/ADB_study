@@ -32,13 +32,7 @@ class BERTfeature(pl.LightningModule):
 
         # use pretrained BERT
         model_config = BertConfig.from_pretrained('bert-base-uncased', output_hidden_states=True)
-<<<<<<< HEAD
-        # model_config = pre.config
-        # self.bert = BertModel.from_pretrained('bert-base-uncased', config=model_config)
         self.bert = BertModel(model_config)
-=======
-        self.bert = BertModel.from_pretrained('bert-base-uncased', config=model_config)
->>>>>>> 7453d0f37ea60b76c9da3dfe5add8467ecf5892d
         self.dense = nn.Linear(self.bert.config.hidden_size, self.bert.config.hidden_size)
         self.activation = nn.ReLU()
         self.dropout =  nn.Dropout(self.bert.config.hidden_dropout_prob)
@@ -48,13 +42,7 @@ class BERTfeature(pl.LightningModule):
 
         # centroids 초기화
         self.centroids = torch.zeros(self.num_labels, 768)
-<<<<<<< HEAD
         self.total_labels = torch.empty(0, dtype=torch.long)
-=======
-
-        self.total_labels = torch.empty(0, dtype=torch.long)
-        self.total_logits = torch.empty((0, self.num_labels))
->>>>>>> 7453d0f37ea60b76c9da3dfe5add8467ecf5892d
         
         # # weight initialization
         # self.init_weights()
@@ -117,11 +105,7 @@ class BERTfeature(pl.LightningModule):
         # fwd
         _, logits = self.forward(input_ids, attention_mask, token_type_ids)
 
-<<<<<<< HEAD
         total_probs = F.softmax(logits.detach(), dim=1)
-=======
-        total_probs = self._loss(logits.detach(), dim=1)
->>>>>>> 7453d0f37ea60b76c9da3dfe5add8467ecf5892d
 
         total_maxprobs, total_preds = total_probs.max(dim = 1)
    
@@ -161,7 +145,7 @@ class BERTfeature(pl.LightningModule):
         return {'test_acc': test_acc}
     
     
-    def predict_step(self, batch, batch_idx):
+   def predict_step(self, batch, batch_idx):
         print("predict step")
 
         # batch
@@ -183,12 +167,7 @@ class BERTfeature(pl.LightningModule):
         for i in range(len(label_ids)):
             label = label_ids[i]
             self.centroids[label] += pooled_output[i]
-<<<<<<< HEAD
             print("feature", pooled_output[i])
-=======
-        
-        # assert 1==0
->>>>>>> 7453d0f37ea60b76c9da3dfe5add8467ecf5892d
 
         return {'centroids':self.centroids, 'total_labels':self.total_labels}
 

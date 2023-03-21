@@ -88,19 +88,11 @@ class BERTADB(pl.LightningModule):
                 
         # delta 초기화
         # delta 값
-        # self.__build_loss()
-        # self.criterion_boundary = BoundaryLoss(num_labels = self.num_labels, feat_dim = 768, device=self.device)
-        
-        # boundaryloss
-        self.num_labels = self.num_labels
-        self.feat_dim = 768
-        self.delta = nn.Parameter(torch.randn(self.num_labels).to(self.device))
-        # print("loss delta", self.delta)
-        nn.init.normal_(self.delta)
+        self.__build_loss()
 
         self.delta_points = []
-        #self.delta = F.softplus(self.delta)
-        #self.delta_points.append(self.delta)
+        self.delta = F.softplus(self.criterion_boundary.delta)
+        self.delta_points.append(self.delta)
         # print("delta points: ", self.delta_points)
         # assert 1==0
 
@@ -124,16 +116,15 @@ class BERTADB(pl.LightningModule):
         input_ids = batch['input_ids']
         attention_mask = batch['attention_mask']
         token_type_ids = batch['token_type_ids']
-        label = batch['label_id']
+        label = batch['label_id'].squeeze()
         
         # fwd
         print("ADB forward")
         ###################
         pooled_output, _ = self.forward(input_ids, attention_mask, token_type_ids)  # feature
         print("before boundary loss")
-        breakpoint()
         # loss
-        loss, self.delta = self.boundaryloss(pooled_output, self.centroids.to(self.device), label)
+        loss, self.delta = self.criterion_boundary(pooled_output, self.centroids.to(self.device), label)
         print("ADB after loss")
 
         print("del", self.delta)
@@ -191,8 +182,6 @@ class BERTADB(pl.LightningModule):
     
     def test_step(self, batch, batch_idx):
         print("test step")
-        # # batch
-        # input_ids, attention_mask, token_type_ids, label = batch
         # batch
         input_ids = batch['input_ids']
         attention_mask = batch['attention_mask']
@@ -212,10 +201,7 @@ class BERTADB(pl.LightningModule):
         print("outputs", outputs[0])
         y_pred = self.total_preds.cpu().numpy()
         y_true = self.total_labels.cpu().numpy()
-        print("y_pred", y_pred)
-        print("y_true", y_true)
         cm = confusion_matrix(y_true, y_pred)
-        print("confusion matrix!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         plot_confusion_matrix(cm, self.label_list,"confusion matrix.pdf")
         test_results = F_measure(cm)
 
@@ -259,11 +245,10 @@ class BERTADB(pl.LightningModule):
         # print("del", self.delta)
         # print("ppp", parameters)
         # assert 1==0
-        # assert 1==0
         optimizer = torch.optim.Adam(parameters, lr=2e-5)
 
         return optimizer
     
-    # def __build_loss(self):
-    #     self.criterion_boundary = boundaryloss(num_labels = self.num_labels, feat_dim = 768, device=self.device)
+    def __build_loss(self):
+        self.criterion_boundary = BoundaryLoss(num_labels = self.num_labels, feat_dim = 768, device=self.device)
     

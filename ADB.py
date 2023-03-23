@@ -123,6 +123,7 @@ class BERTADB(pl.LightningModule):
         ###################
         pooled_output, _ = self.forward(input_ids, attention_mask, token_type_ids)  # feature
         print("before boundary loss")
+        # breakpoint()
         # loss
         loss, self.delta = self.criterion_boundary(pooled_output, self.centroids.to(self.device), label)
         print("ADB after loss")
@@ -162,7 +163,7 @@ class BERTADB(pl.LightningModule):
         input_ids = batch['input_ids']
         attention_mask = batch['attention_mask']
         token_type_ids = batch['token_type_ids']
-        label_id = batch['label_id']
+        label_id = batch['label_id'].squeeze()
          
         # fwd
         pooled_output, _ = self.forward(input_ids, attention_mask, token_type_ids)
@@ -186,7 +187,7 @@ class BERTADB(pl.LightningModule):
         input_ids = batch['input_ids']
         attention_mask = batch['attention_mask']
         token_type_ids = batch['token_type_ids']
-        label_id = batch['label_id']
+        label_id = batch['label_id'].squeeze()
         
         pooled_output, _ = self.forward(input_ids, attention_mask, token_type_ids)
         
@@ -240,12 +241,13 @@ class BERTADB(pl.LightningModule):
                 parameters.append(p)
             else:
                 print(p)
-
-        # print("pa", self.criterion_boundary.parameters())
-        # print("del", self.delta)
-        # print("ppp", parameters)
+        # breakpoint()
+        print("pa", self.criterion_boundary.parameters())
+        print("del", self.delta)
+        print("ppp", parameters)
         # assert 1==0
-        optimizer = torch.optim.Adam(parameters, lr=2e-5)
+        # optimizer = torch.optim.Adam(self.criterion_boundary.delta, lr=2e-5)
+        optimizer = torch.optim.Adam(self.criterion_boundary.parameters(), lr=2e-2)
 
         return optimizer
     
